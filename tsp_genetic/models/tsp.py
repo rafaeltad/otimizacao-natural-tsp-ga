@@ -27,13 +27,8 @@ class TSPGenetic:
         self.num_cities = len(cities_gdf)
         self.distance_matrix = self._compute_distance_matrix()
         self.coord_to_index = self._coord_to_index(cities_gdf)
-        (
-            self.initial_population,
-            self.initial_fittest,
-            self.initial_min_distance,
-        ) = self._initial_population(pop_size)
+        self.initial_population = self._initial_population(pop_size)
         self.current_population = self.initial_population
-        self.new_population = []
 
     def _coord_to_index(self, cities_gdf):
         coord_to_index = {}
@@ -49,9 +44,8 @@ class TSPGenetic:
             individual = self.cities.sample(n=self.num_cities).reset_index(
                 drop=True
             )
-            population.append((individual, self.total_distance(individual)))
-        fittest, min_distance = sorted(population, key=lambda x: x[1])[0]
-        return population, fittest, min_distance
+            population.append((individual, self.fitness(individual)))
+        return population
 
     def _compute_distance_matrix(self):
         """Pre-compute all pairwise distances between cities for performance."""
@@ -91,17 +85,14 @@ class TSPGenetic:
             total_distance += float(self.distance_matrix[idx_a][idx_b])
         return total_distance
 
-    def fitness(self, population):
+    def fitness(self, individual):
         """Calculate the fitness of the TSP individual."""
         # Fitness is inversely related to the total distance
-        fitness_scores = []
-        for individual in population:
-            total_dist = self.total_distance(individual)
-            if total_dist == 0:
-                fitness_scores.append(float("inf"))
-            else:
-                fitness_scores.append(total_dist)
-        return fitness_scores
+        total_dist = self.total_distance(individual)
+        if total_dist == 0:
+            return float("inf")
+        else:
+            return 1 / total_dist
 
     def swap(self, individual):
         """Optimized simple swap with reduced DataFrame operations."""
@@ -135,13 +126,15 @@ class TSPGenetic:
     def parent_selection(self, tournament_size):
         # TOURNAMENT SELECTION (sample without replacement, sort by fitness)
         tournament = random.sample(self.current_population, k=min(tournament_size, len(self.current_population)))
-        # Each individual is a tuple (individual, distance)
-        tournament_sorted = sorted(tournament, key=lambda x: x[1])
+        # Each individual is a tuple (individual, fitness)
+        tournament_sorted = sorted(
+            tournament, key=lambda x: x[1], reverse=True
+        )
         return tournament_sorted
 
     def crossover(self, parent1, parent2):
         # Order 1 Crossover for DataFrames
-        # parent1 and parent2 are tuples: (individual_df, distance)
+        # parent1 and parent2 are tuples: (individual_df, fitness)
         p1_df = parent1[0].copy().reset_index(drop=True)
         p2_df = parent2[0].copy().reset_index(drop=True)
         point = random.randint(1, self.num_cities - 1)
@@ -160,3 +153,62 @@ class TSPGenetic:
                 child2 = child2.append(row, ignore_index=True)
 
         return child1, child2
+
+    def run(
+        self,
+        num_generations=200,
+        mutation_type="inversion",
+        pop_size=50,
+        crossover_rate=0.8,
+        mutation_rate=0.2,
+        elitism_percentage=0.1,
+    ):
+        history = []
+        generation_best = (None, None)
+        for generation in range(num_generations):
+            # Elitism
+            num_elites = int(elitism_percentage * len(self.current_population))
+            elites = sorted(
+                self.current_population, key=lambda x: x[1], reverse=True
+            )[:num_elites]
+            new_population = elites
+
+            # Crossover and mutation
+            offspring_list = []
+            for i in range(len(self.current_population) - 1):
+                # Crossover check
+                if random.random() < crossover_rate:
+                    # Crossover
+                    offspring1, offspring2 = self.crossover(
+                        self.current_population[i],
+                        self.current_population[i + 1],
+                    )
+                    if random.random() < mutation_rate:
+                        offspring1 = self.mutate(mutation_type, offspring1)
+                    if random.random() < mutation_rate:
+                        offspring2 = self.mutate(mutation_type, offspring2)
+                    offspring_list.append(
+                        (offspring1, self.fitness(offspring1))
+                    )
+                    offspring_list.append(
+                        (offspring2, self.fitness(offspring2))
+                    )
+                else:
+                    # No crossover, just copy parents
+                    offspring1 = self.current_population[i]
+                    offspring2 = self.current_population[i + 1]
+                    offspring_list.append(offspring1)
+                    offspring_list.append(offspring2)
+
+            new_population.extend(offspring_list)
+
+            # Update population
+            self.current_population = new_population.copy()[:pop_size]
+
+            # Save best for each generation
+            generation_best = max(self.current_population, key=lambda x: x[1])
+            history.append(
+                (generation, generation_best[0], generation_best[1])
+            )
+        history_best = max(history, key=lambda x: x[2])
+        return history, history_best
