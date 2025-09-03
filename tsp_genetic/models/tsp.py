@@ -1,10 +1,11 @@
-import numpy as np
+import os
 import random
+import logging
+import numpy as np
+import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
 from tsp_genetic.utils import get_distance
-import logging
-import os
 
 LOGGER = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -145,12 +146,16 @@ class TSPGenetic:
         child1 = p1_df.iloc[:point].copy()
         for idx, row in p2_df.iterrows():
             if not df_contains(child1, row):
-                child1 = child1.append(row, ignore_index=True)
+                child1 = pd.concat(
+                    [child1, row.to_frame().T], ignore_index=True
+                )
 
         child2 = p2_df.iloc[:point].copy()
         for idx, row in p1_df.iterrows():
             if not df_contains(child2, row):
-                child2 = child2.append(row, ignore_index=True)
+                child2 = pd.concat(
+                    [child2, row.to_frame().T], ignore_index=True
+                )
 
         return child1, child2
 
