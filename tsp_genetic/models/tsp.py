@@ -164,7 +164,6 @@ class TSPGenetic:
         elitism_percentage=0.1,
     ):
         history = []
-        generation_best = (None, None)
         for generation in range(num_generations):
             # Elitism
             num_elites = int(elitism_percentage * len(self.current_population))
