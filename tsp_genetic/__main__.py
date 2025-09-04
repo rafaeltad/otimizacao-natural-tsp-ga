@@ -51,16 +51,17 @@ def main(config_path: Annotated[str, typer.Option()] = ".data/config.yaml"):
             raise ValueError(
                 f"Requested {n_cities} cities, but only {len(cities_gdf)} available."
             )
-        cities_gdf = cities_gdf.sample(
+        sampled_cities_gdf = cities_gdf.sample(
             n=n_cities, random_state=42
         ).reset_index(drop=True)
         # Start MLflow run
         with mlflow.start_run():
             plot_path = plot_tsp_solution(
-                cities_gdf.nome.tolist(),
+                sampled_cities_gdf.nome.tolist(),
                 cities_gdf,
                 brazil,
                 title=f"All Cities (n={n_cities}). Initial State",
+                solution_name="initial_state",
             )
 
             LOGGER.info(
@@ -69,7 +70,7 @@ def main(config_path: Annotated[str, typer.Option()] = ".data/config.yaml"):
 
             # Create TSP instance and run with current parameters
             tsp = TSPGenetic(
-                cities_gdf, pop_size=param_run.get("pop_size", 10)
+                sampled_cities_gdf, pop_size=param_run.get("pop_size", 10)
             )
             history, best = tsp.run(
                 num_generations=param_run.get("num_generations", 20),
@@ -77,9 +78,10 @@ def main(config_path: Annotated[str, typer.Option()] = ".data/config.yaml"):
                 mutation_rate=param_run.get("mutation_rate", 0.2),
                 crossover_rate=param_run.get("crossover_rate", 0.8),
                 mutation_type=param_run.get("mutation_type", "inversion"),
+                tournament_size=param_run.get("tournament_size", 5),
             )
             LOGGER.info(
-                f"Best fitness: {best[2]:.6f}, Distance: {tsp.total_distance(best[1]):.2f}"
+                f"Best fitness: {(1e6*best[2]):.6f}, Distance: {tsp.total_distance(best[1]):.2f}"
             )
 
             # Log parameters run for this combination
