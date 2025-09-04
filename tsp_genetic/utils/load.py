@@ -1,8 +1,20 @@
 import yaml
 import requests
+import logging
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
+from geobr import read_state
+
+LOGGER = logging.getLogger(__name__)
+
+
+def load_brazil_map():
+    """Load the map of Brazil using geobr."""
+    # Load Brazil state boundaries
+    brazil = read_state()
+    LOGGER.info(f"Loaded Brazil state boundaries: {brazil.shape[0]} states")
+    return brazil
 
 
 def get_data_from_ibge(endpoint):
@@ -28,8 +40,8 @@ def load_cities(
     cities = get_data_from_ibge(endpoint=endpoint)
 
     # Convert tipos to match for the merge
-    cities['id'] = cities['id'].astype(str)
-    data['codigo_ibge'] = data['codigo_ibge'].astype(str)
+    cities["id"] = cities["id"].astype(str)
+    data["codigo_ibge"] = data["codigo_ibge"].astype(str)
 
     # Merge CSV data with IBGE population data
     merged_data = data.merge(
@@ -41,7 +53,9 @@ def load_cities(
     )
 
     # Filter out rows without population data and sort by population
-    merged_data = merged_data.dropna(subset=['populacao']).sort_values(by="populacao", ascending=False)[
+    merged_data = merged_data.dropna(subset=["populacao"]).sort_values(
+        by="populacao", ascending=False
+    )[
         [
             "codigo_ibge",
             "nome",
@@ -52,19 +66,23 @@ def load_cities(
     ]
 
     # Clean and prepare the data
-    merged_data['populacao'] = merged_data['populacao'].astype(int)
+    merged_data["populacao"] = merged_data["populacao"].astype(int)
 
     # Select top cities by population
-    df = merged_data.sort_values(by=['populacao'], ascending=False)[['nome', 'latitude', 'longitude', 'populacao']]
+    df = merged_data.sort_values(by=["populacao"], ascending=False)[
+        ["nome", "latitude", "longitude", "populacao"]
+    ]
 
     geometry = [Point(xy) for xy in zip(df["longitude"], df["latitude"])]
     gdf = gpd.GeoDataFrame(df, crs="EPSG:4326", geometry=geometry)
     return gdf
 
 
-
 def load_config(config_path):
     """Load configuration from a YAML file."""
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
+        if not config:
+            raise ValueError(f"Config file {config_path} is empty or invalid.")
+    LOGGER.info(f"Loaded configuration from {config_path}")
     return config

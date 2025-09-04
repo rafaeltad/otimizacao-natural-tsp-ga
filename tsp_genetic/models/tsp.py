@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 from tsp_genetic.utils import get_distance
 
 LOGGER = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 
 class TSPGenetic:
@@ -32,24 +31,29 @@ class TSPGenetic:
         self.current_population = self.initial_population
 
     def _coord_to_index(self, cities_gdf):
+        LOGGER.info("Creating coordinate to index mapping...")
         coord_to_index = {}
         for idx, row in cities_gdf.iterrows():
             coord_key = (row["latitude"], row["longitude"])
             coord_to_index[coord_key] = idx
+        LOGGER.info("Coordinate to index mapping created.")
         return coord_to_index
 
     def _initial_population(self, size):
         """Generate a random initial population."""
+        LOGGER.info("Generating initial population...")
         population = []
         for _ in range(size):  # Generate random solutions
             individual = self.cities.sample(n=self.num_cities).reset_index(
                 drop=True
             )
             population.append((individual, self.fitness(individual)))
+        LOGGER.info("Initial population generated.")
         return population
 
     def _compute_distance_matrix(self):
         """Pre-compute all pairwise distances between cities for performance."""
+        LOGGER.info("Computing distance matrix...")
         n = len(self.cities)
         distances = np.zeros((n, n))
         for i in range(n):
@@ -64,6 +68,7 @@ class TSPGenetic:
                 )
                 dist = get_distance(coords_a, coords_b)
                 distances[i][j] = distances[j][i] = dist
+        LOGGER.info("Distance matrix computation completed.")
         return distances
 
     def total_distance(self, individual):
@@ -168,24 +173,28 @@ class TSPGenetic:
         mutation_rate=0.2,
         elitism_percentage=0.1,
     ):
+        LOGGER.info(
+            f"Starting TSP genetic algorithm with {num_generations} generations, population size {pop_size}"
+        )
         history = []
         for generation in range(num_generations):
+            parents_list = sorted(
+                self.current_population, key=lambda x: x[1], reverse=True
+            )
             # Elitism
             num_elites = int(elitism_percentage * len(self.current_population))
-            elites = sorted(
-                self.current_population, key=lambda x: x[1], reverse=True
-            )[:num_elites]
+            elites = parents_list[:num_elites]
             new_population = elites
 
             # Crossover and mutation
             offspring_list = []
-            for i in range(len(self.current_population) - 1):
+            for i in range(len(parents_list) - 1):
                 # Crossover check
                 if random.random() < crossover_rate:
                     # Crossover
                     offspring1, offspring2 = self.crossover(
-                        self.current_population[i],
-                        self.current_population[i + 1],
+                        parents_list[i],
+                        parents_list[i + 1],
                     )
                     if random.random() < mutation_rate:
                         offspring1 = self.mutate(mutation_type, offspring1)
@@ -199,20 +208,40 @@ class TSPGenetic:
                     )
                 else:
                     # No crossover, just copy parents
-                    offspring1 = self.current_population[i]
-                    offspring2 = self.current_population[i + 1]
+                    offspring1 = parents_list[i]
+                    offspring2 = parents_list[i + 1]
                     offspring_list.append(offspring1)
                     offspring_list.append(offspring2)
 
+            new_population.extend(parents_list[num_elites:])
             new_population.extend(offspring_list)
+            new_population = new_population[:pop_size]
 
             # Update population
-            self.current_population = new_population.copy()[:pop_size]
+            self.current_population = new_population.copy()
 
             # Save best for each generation
             generation_best = max(self.current_population, key=lambda x: x[1])
             history.append(
                 (generation, generation_best[0], generation_best[1])
             )
+
+            # Log progress for every generation
+            distance = (
+                1 / generation_best[1]
+                if generation_best[1] > 0
+                else float("inf")
+            )
+            LOGGER.info(
+                f"Generation {generation}: Best fitness {generation_best[1]:.6f} (distance: {distance:.2f})"
+            )
+
+        LOGGER.info("TSP genetic algorithm completed")
         history_best = max(history, key=lambda x: x[2])
+        final_distance = (
+            1 / history_best[2] if history_best[2] > 0 else float("inf")
+        )
+        LOGGER.info(
+            f"Best solution found: fitness {history_best[2]:.6f}, distance {final_distance:.2f}"
+        )
         return history, history_best
