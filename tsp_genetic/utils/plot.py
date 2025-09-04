@@ -70,5 +70,5 @@ def plot_tsp_solution(
         )
         fig.savefig(plot_path, dpi=150, bbox_inches="tight")
         plt.close(fig)
-        mlflow.log_artifact(plot_path, f"plots/")
+        mlflow.log_artifact(plot_path, "plots")
     return plot_path

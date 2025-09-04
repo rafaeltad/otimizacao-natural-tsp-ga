@@ -181,12 +181,8 @@ class TSPGenetic:
             parents_list = sorted(
                 self.current_population, key=lambda x: x[1], reverse=True
             )
-            # Elitism
-            num_elites = int(elitism_percentage * len(self.current_population))
-            elites = parents_list[:num_elites]
-            new_population = elites
 
-            # Crossover and mutation
+            # Generate offspring for every parent with the next parent
             offspring_list = []
             for i in range(len(parents_list) - 1):
                 # Crossover check
@@ -196,6 +192,7 @@ class TSPGenetic:
                         parents_list[i],
                         parents_list[i + 1],
                     )
+                    # Apply mutation
                     if random.random() < mutation_rate:
                         offspring1 = self.mutate(mutation_type, offspring1)
                     if random.random() < mutation_rate:
@@ -206,16 +203,15 @@ class TSPGenetic:
                     offspring_list.append(
                         (offspring2, self.fitness(offspring2))
                     )
-                else:
-                    # No crossover, just copy parents
-                    offspring1 = parents_list[i]
-                    offspring2 = parents_list[i + 1]
-                    offspring_list.append(offspring1)
-                    offspring_list.append(offspring2)
 
-            new_population.extend(parents_list[num_elites:])
-            new_population.extend(offspring_list)
-            new_population = new_population[:pop_size]
+            # Combine all parents + all offspring into new generation
+            new_generation = parents_list + offspring_list
+
+            # Sort by fitness (descending) and select top pop_size individuals
+            new_generation_sorted = sorted(
+                new_generation, key=lambda x: x[1], reverse=True
+            )
+            new_population = new_generation_sorted[:pop_size]
 
             # Update population
             self.current_population = new_population.copy()
