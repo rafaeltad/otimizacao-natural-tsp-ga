@@ -171,7 +171,7 @@ class TSPGenetic:
         pop_size=50,
         crossover_rate=0.8,
         mutation_rate=0.2,
-        elitism_percentage=0.1,
+        tournament_size=3,
     ):
         LOGGER.info(
             f"Starting TSP genetic algorithm with {num_generations} generations, population size {pop_size}"
@@ -182,28 +182,41 @@ class TSPGenetic:
                 self.current_population, key=lambda x: x[1], reverse=True
             )
 
-            # Generate offspring for every parent with the next parent
+            # Generate offspring using tournament selection
             offspring_list = []
-            for i in range(len(parents_list) - 1):
+            # Generate offspring pairs based on population size
+            num_offspring_pairs = len(parents_list) // 2
+
+            for _ in range(num_offspring_pairs):
                 # Crossover check
                 if random.random() < crossover_rate:
+                    # Select parents using tournament selection
+                    tournament1 = self.parent_selection(tournament_size)
+                    tournament2 = self.parent_selection(tournament_size)
+                    parent1 = tournament1[0]  # Best from first tournament
+                    parent2 = tournament2[0]  # Best from second tournament
+
                     # Crossover
-                    offspring1, offspring2 = self.crossover(
-                        parents_list[i],
-                        parents_list[i + 1],
-                    )
+                    offspring1, offspring2 = self.crossover(parent1, parent2)
+
                     # Apply mutation
                     if random.random() < mutation_rate:
                         offspring1 = self.mutate(mutation_type, offspring1)
                     if random.random() < mutation_rate:
                         offspring2 = self.mutate(mutation_type, offspring2)
+
                     offspring_list.append(
                         (offspring1, self.fitness(offspring1))
                     )
                     offspring_list.append(
                         (offspring2, self.fitness(offspring2))
                     )
-
+                else:
+                    # No crossover, just copy parents (with possible mutation)
+                    tournament1 = self.parent_selection(tournament_size)
+                    tournament2 = self.parent_selection(tournament_size)
+                    parent1 = tournament1[0]  # Best from first tournament
+                    parent2 = tournament2[0]  # Best from second tournament
             # Combine all parents + all offspring into new generation
             new_generation = parents_list + offspring_list
 
@@ -229,7 +242,7 @@ class TSPGenetic:
                 else float("inf")
             )
             LOGGER.info(
-                f"Generation {generation}: Best fitness {generation_best[1]:.6f} (distance: {distance:.2f})"
+                f"Generation {generation}: Best fitness {(1e6*generation_best[1]):.6f} (distance: {distance:.2f})"
             )
 
         LOGGER.info("TSP genetic algorithm completed")
@@ -238,6 +251,6 @@ class TSPGenetic:
             1 / history_best[2] if history_best[2] > 0 else float("inf")
         )
         LOGGER.info(
-            f"Best solution found: fitness {history_best[2]:.6f}, distance {final_distance:.2f}"
+            f"Best solution found: fitness {(1e6*history_best[2]):.6f}, distance {final_distance:.2f}"
         )
         return history, history_best

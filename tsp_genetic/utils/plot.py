@@ -1,6 +1,7 @@
 import mlflow
 import numpy as np
 import matplotlib.pyplot as plt
+import geopandas as gpd
 import tempfile
 import os
 
@@ -27,12 +28,17 @@ def plot_tsp_solution(
 
     # Prepare coordinates in visiting order
     if isinstance(individual[0], str):
-        visited_gdf = gdf[gdf["nome"].isin(individual)]
-        coords = (
-            visited_gdf.set_index("nome")
-            .loc[individual][["longitude", "latitude"]]
-            .values
-        )
+        # Create a list to store selected cities in the correct order
+        selected_rows = []
+        for city_name in individual:
+            # Find the first matching city (to handle duplicates)
+            matching_cities = gdf[gdf["nome"] == city_name]
+            if len(matching_cities) > 0:
+                selected_rows.append(matching_cities.iloc[0])
+
+        # Create a GeoDataFrame from selected rows
+        visited_gdf = gpd.GeoDataFrame(selected_rows).reset_index(drop=True)
+        coords = visited_gdf[["longitude", "latitude"]].values
         names = individual
     else:
         visited_gdf = gdf.iloc[individual]
@@ -41,7 +47,8 @@ def plot_tsp_solution(
 
     # Optionally close the loop
     coords = np.vstack([coords, coords[0]])
-    names = list(names) + [names[0]]
+    original_names = list(names)
+    names = original_names + [original_names[0]]
 
     fig, ax = plt.subplots(figsize=(12, 12))
     brazil.plot(ax=ax, color="white", edgecolor="black")
